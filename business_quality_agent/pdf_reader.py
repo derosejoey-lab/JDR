@@ -3,6 +3,7 @@
 #
 # Dependency: pypdf  (install with: pip install pypdf)
 
+import sys
 from pathlib import Path
 
 try:
@@ -10,13 +11,10 @@ try:
 except ImportError:
     pypdf = None  # Handled gracefully in load_all_pdfs()
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
-
-INVESTMENT_COMMITTEE_FOLDER = (
-    Path.home() / "Desktop" / "AI_Investment_Committee"
-)
+# Sibling-module import for centralized path config.
+_HERE = Path(__file__).parent
+sys.path.insert(0, str(_HERE))
+from config import BASE_DIR as INVESTMENT_COMMITTEE_FOLDER
 
 # Hard cap on total characters sent to the LLM (~40k chars ≈ ~10k tokens).
 DEFAULT_MAX_CHARS = 40_000

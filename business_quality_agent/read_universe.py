@@ -8,6 +8,7 @@
 #
 # Expects the file at:
 #   ~/Desktop/AI_Investment_Committee/stock_universe.csv
+# Override with: export BQA_BASE_DIR="/your/path"
 
 import sys
 from pathlib import Path
@@ -19,13 +20,10 @@ except ImportError:
     print("        Fix: pip install pandas")
     sys.exit(1)
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
-
-CSV_PATH = (
-    Path.home() / "Desktop" / "AI_Investment_Committee" / "stock_universe.csv"
-)
+# Sibling-module import for centralized path config.
+_HERE = Path(__file__).parent
+sys.path.insert(0, str(_HERE))
+from config import CSV_PATH
 
 # Column names to search for, in priority order (case-insensitive).
 TICKER_COLUMN_CANDIDATES = [
@@ -112,7 +110,9 @@ def main() -> None:
         print( "          1. The file 'stock_universe.csv' is in the folder")
         print(f"             {CSV_PATH.parent}")
         print( "          2. The folder name matches exactly: 'AI_Investment_Committee'")
-        print( "          3. The folder is on your Desktop\n")
+        print( "          3. The folder is on your Desktop")
+        print( "        Or set BQA_BASE_DIR to point to your folder:")
+        print( '          export BQA_BASE_DIR="/path/to/your/folder"\n')
         sys.exit(1)
 
     # 2. Load the tickers.

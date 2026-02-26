@@ -22,8 +22,9 @@ except ImportError:
 _HERE = Path(__file__).parent
 sys.path.insert(0, str(_HERE))
 
-from pdf_reader import load_all_pdfs, INVESTMENT_COMMITTEE_FOLDER
-from read_universe import CSV_PATH, load_tickers
+from config import CSV_PATH, BASE_DIR as INVESTMENT_COMMITTEE_FOLDER
+from pdf_reader import load_all_pdfs
+from read_universe import load_tickers
 from stakeholder_sentiment import gather_stakeholder_sentiment
 
 # ---------------------------------------------------------------------------

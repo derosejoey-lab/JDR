@@ -3,6 +3,7 @@
 # Outputs:
 #   ~/Desktop/AI_Investment_Committee/quality_rankings.csv
 #   ~/Desktop/AI_Investment_Committee/agent_handoff.json
+# Override base path with: export BQA_BASE_DIR="/your/path"
 #
 # Dependencies: pip install anthropic tavily-python pandas
 # API keys:
@@ -28,7 +29,8 @@ except ImportError:
 _HERE = Path(__file__).parent
 sys.path.insert(0, str(_HERE))
 
-from read_universe import CSV_PATH, load_tickers
+from config import CSV_PATH, OUTPUT_FOLDER, CSV_OUTPUT, JSON_OUTPUT
+from read_universe import load_tickers
 from stakeholder_sentiment import fetch_employee_sentiment, fetch_customer_sentiment
 from scorer import score_ticker
 
@@ -37,10 +39,6 @@ from scorer import score_ticker
 # ---------------------------------------------------------------------------
 
 BATCH_SIZE = 5
-
-OUTPUT_FOLDER = Path.home() / "Desktop" / "AI_Investment_Committee"
-CSV_OUTPUT    = OUTPUT_FOLDER / "quality_rankings.csv"
-JSON_OUTPUT   = OUTPUT_FOLDER / "agent_handoff.json"
 
 AGENT_VERSION = "Business Quality Agent v1.0"
 MODEL         = "claude-opus-4-6"
@@ -233,7 +231,9 @@ def main() -> None:
 
     # 2. Load stock universe.
     if not CSV_PATH.exists():
-        print(f"\n[ERROR] Stock universe not found: {CSV_PATH}\n")
+        print(f"\n[ERROR] Stock universe not found: {CSV_PATH}")
+        print( "        Set BQA_BASE_DIR to point to your folder:")
+        print( '        export BQA_BASE_DIR="/path/to/your/folder"\n')
         sys.exit(1)
 
     tickers = load_tickers(CSV_PATH)
