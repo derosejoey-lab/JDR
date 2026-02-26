@@ -6,11 +6,11 @@
 #   python business_quality_agent/check_paths.py
 #
 # It checks:
-#   1. Required Python packages (pandas, anthropic, tavily-python, pypdf)
+#   1. Required Python packages (pandas, google-genai, tavily-python, pypdf)
 #   2. Base directory exists (~/Desktop/AI_Investment_Committee or BQA_BASE_DIR)
 #   3. stock_universe.csv exists and is readable
 #   4. PDF files (optional) are present
-#   5. API keys are set (ANTHROPIC_API_KEY, TAVILY_API_KEY)
+#   5. API keys are set (GEMINI_API_KEY, TAVILY_API_KEY)
 
 import os
 import sys
@@ -57,7 +57,7 @@ def check_packages() -> None:
 
     for pkg, import_name, required in [
         ("pandas", "pandas", True),
-        ("anthropic", "anthropic", True),
+        ("google-genai", "google.genai", True),
         ("tavily-python", "tavily", True),
         ("pypdf", "pypdf", False),
     ]:
@@ -146,13 +146,13 @@ def check_pdfs() -> None:
 def check_api_keys() -> None:
     print("\n--- API Keys ---")
 
-    key = os.environ.get("ANTHROPIC_API_KEY", "")
+    key = os.environ.get("GEMINI_API_KEY", "")
     if key:
         masked = key[:10] + "..." + key[-4:] if len(key) > 14 else "***"
-        ok(f"ANTHROPIC_API_KEY is set ({masked})")
+        ok(f"GEMINI_API_KEY is set ({masked})")
     else:
-        fail("ANTHROPIC_API_KEY is NOT set")
-        print('         Fix: export ANTHROPIC_API_KEY="sk-ant-..."')
+        fail("GEMINI_API_KEY is NOT set")
+        print('         Fix: export GEMINI_API_KEY="..."')
 
     key = os.environ.get("TAVILY_API_KEY", "")
     if key:

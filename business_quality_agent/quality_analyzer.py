@@ -1,8 +1,8 @@
 # Business Quality Agent — LLM Quality Analyzer
-# Researches and summarises a stock's quality characteristics using Claude.
+# Researches and summarises a stock's quality characteristics using Gemini.
 #
-# Dependencies: pip install anthropic pypdf pandas
-# API key:      export ANTHROPIC_API_KEY="sk-ant-..."
+# Dependencies: pip install google-genai pypdf pandas
+# API key:      export GEMINI_API_KEY="..."
 #
 # Usage:
 #   python quality_analyzer.py
@@ -12,10 +12,11 @@ import sys
 from pathlib import Path
 
 try:
-    import anthropic
+    from google import genai
+    from google.genai import types
 except ImportError:
-    print("[ERROR] 'anthropic' is not installed.")
-    print("        Fix: pip install anthropic")
+    print("[ERROR] 'google-genai' is not installed.")
+    print("        Fix: pip install google-genai")
     sys.exit(1)
 
 # Sibling-module imports (works whether run as a script or imported).
@@ -197,7 +198,7 @@ Profits that are not backed by cash are unreliable. Test rigorously:
 def analyze_stock(ticker: str) -> str:
     """Research and summarise quality characteristics for *ticker*.
 
-    Calls the Claude API with a rich system prompt incorporating the
+    Calls the Gemini API with a rich system prompt incorporating the
     quality-investing framework, supplemented by any PDF text found in
     the AI_Investment_Committee folder.
 
@@ -279,24 +280,26 @@ needed for a definitive conclusion.
    - 2–3 sentence rationale summarising the key drivers of your verdict.
 """
 
-    # 4. Call the Claude API.
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    # 4. Call the Gemini API.
+    api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        print("\n[ERROR] ANTHROPIC_API_KEY environment variable is not set.")
-        print("        Fix: export ANTHROPIC_API_KEY='sk-ant-...'")
+        print("\n[ERROR] GEMINI_API_KEY environment variable is not set.")
+        print("        Fix: export GEMINI_API_KEY='...'")
         sys.exit(1)
 
-    client = anthropic.Anthropic(api_key=api_key)
+    client = genai.Client(api_key=api_key)
 
-    print("Calling Claude API...")
-    response = client.messages.create(
-        model="claude-opus-4-6",
-        max_tokens=1500,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}],
+    print("Calling Gemini API...")
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=user_message,
+        config=types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            max_output_tokens=1500,
+        ),
     )
 
-    return response.content[0].text
+    return response.text
 
 
 # ---------------------------------------------------------------------------
@@ -321,12 +324,6 @@ def main() -> None:
     # Run the analysis.
     try:
         result = analyze_stock(first_ticker)
-    except anthropic.AuthenticationError:
-        print("\n[ERROR] Invalid ANTHROPIC_API_KEY. Please check your key.\n")
-        sys.exit(1)
-    except anthropic.APIConnectionError as exc:
-        print(f"\n[ERROR] Could not connect to the Anthropic API: {exc}\n")
-        sys.exit(1)
     except Exception as exc:
         print(f"\n[ERROR] Unexpected error during analysis: {exc}\n")
         sys.exit(1)
@@ -347,7 +344,8 @@ def main() -> None:
     print(f"= {s_banner} =")
     print(f"{s_border}\n")
 
-    sentiment_client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+    api_key = os.environ.get("GEMINI_API_KEY")
+    sentiment_client = genai.Client(api_key=api_key)
 
     try:
         sentiment = gather_stakeholder_sentiment(first_ticker, sentiment_client)

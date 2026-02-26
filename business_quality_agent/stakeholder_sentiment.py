@@ -1,11 +1,11 @@
 # Business Quality Agent — Stakeholder Sentiment via Web Search
 # Gathers live employee and customer sentiment data using Tavily web search,
-# then synthesises it into a structured report via Claude.
+# then synthesises it into a structured report via Gemini.
 #
-# Dependencies: pip install tavily-python anthropic
+# Dependencies: pip install tavily-python google-genai
 # API keys:
 #   export TAVILY_API_KEY="tvly-..."
-#   export ANTHROPIC_API_KEY="sk-ant-..."
+#   export GEMINI_API_KEY="..."
 
 import os
 import sys
@@ -17,10 +17,11 @@ except ImportError:
     TavilyClient = None  # Handled gracefully in _get_tavily_client()
 
 try:
-    import anthropic
+    from google import genai
+    from google.genai import types
 except ImportError:
-    print("[ERROR] 'anthropic' is not installed.")
-    print("        Fix: pip install anthropic")
+    print("[ERROR] 'google-genai' is not installed.")
+    print("        Fix: pip install google-genai")
     sys.exit(1)
 
 # ---------------------------------------------------------------------------
@@ -30,7 +31,7 @@ except ImportError:
 MAX_RESULTS_PER_QUERY = 5   # Tavily results per search call
 MAX_CONTENT_PER_RESULT = 800  # Characters of page content to include per result
 MAX_SECTION_CHARS = 6_000   # Total chars for each sentiment section in the prompt
-SENTIMENT_MAX_TOKENS = 800  # Claude response cap for synthesis (lightweight call)
+SENTIMENT_MAX_TOKENS = 800  # Gemini response cap for synthesis (lightweight call)
 
 
 # ---------------------------------------------------------------------------
@@ -145,7 +146,7 @@ def _format_results_for_prompt(
     results: list[dict],
     max_chars: int = MAX_SECTION_CHARS,
 ) -> str:
-    """Format a list of Tavily results into a readable block for a Claude prompt.
+    """Format a list of Tavily results into a readable block for a Gemini prompt.
 
     Truncates total output to *max_chars* to keep token usage bounded.
     """
@@ -179,18 +180,18 @@ def _format_results_for_prompt(
 
 
 # ---------------------------------------------------------------------------
-# Claude synthesis
+# Gemini synthesis
 # ---------------------------------------------------------------------------
 
 def synthesize_sentiment(
     ticker: str,
     employee_results: list[dict],
     customer_results: list[dict],
-    client: anthropic.Anthropic,
+    client: genai.Client,
 ) -> str:
-    """Use Claude to synthesise raw search results into a structured sentiment report.
+    """Use Gemini to synthesise raw search results into a structured sentiment report.
 
-    This is a lightweight synthesis call (no system prompt, max_tokens=800).
+    This is a lightweight synthesis call (max_output_tokens=800).
     Returns the response text.
     """
     employee_block = _format_results_for_prompt(employee_results)
@@ -238,13 +239,15 @@ CUSTOMER REVIEW DATA
 {customer_block}
 """
 
-    response = client.messages.create(
-        model="claude-opus-4-6",
-        max_tokens=SENTIMENT_MAX_TOKENS,
-        messages=[{"role": "user", "content": user_message}],
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=user_message,
+        config=types.GenerateContentConfig(
+            max_output_tokens=SENTIMENT_MAX_TOKENS,
+        ),
     )
 
-    return response.content[0].text
+    return response.text
 
 
 # ---------------------------------------------------------------------------
@@ -253,14 +256,14 @@ CUSTOMER REVIEW DATA
 
 def gather_stakeholder_sentiment(
     ticker: str,
-    anthropic_client: anthropic.Anthropic,
+    gemini_client: genai.Client,
 ) -> str:
     """Fetch and synthesise stakeholder sentiment for *ticker*.
 
     Orchestrates the full pipeline:
       1. Web search for employee sentiment (Glassdoor-focused)
       2. Web search for customer sentiment (Trustpilot-focused)
-      3. Claude synthesis of raw results into a structured report
+      3. Gemini synthesis of raw results into a structured report
 
     Returns the synthesised report as a plain string.
     Raises EnvironmentError if TAVILY_API_KEY is missing/invalid.
@@ -283,6 +286,6 @@ def gather_stakeholder_sentiment(
             "          Try again, or check your TAVILY_API_KEY."
         )
 
-    # 4. Claude synthesis.
-    print("  Synthesising stakeholder sentiment with Claude...")
-    return synthesize_sentiment(ticker, employee_results, customer_results, anthropic_client)
+    # 4. Gemini synthesis.
+    print("  Synthesising stakeholder sentiment with Gemini...")
+    return synthesize_sentiment(ticker, employee_results, customer_results, gemini_client)

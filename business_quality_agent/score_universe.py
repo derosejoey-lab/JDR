@@ -5,9 +5,9 @@
 #   ~/Desktop/AI_Investment_Committee/agent_handoff.json
 # Override base path with: export BQA_BASE_DIR="/your/path"
 #
-# Dependencies: pip install anthropic pandas
+# Dependencies: pip install google-genai pandas
 # API keys:
-#   export ANTHROPIC_API_KEY="sk-ant-..."
+#   export GEMINI_API_KEY="..."
 #
 # Usage:
 #   python business_quality_agent/score_universe.py          # batch mode (all tickers)
@@ -22,9 +22,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 try:
-    import anthropic
+    from google import genai
 except ImportError:
-    print("[ERROR] 'anthropic' is not installed.  Fix: pip install anthropic")
+    print("[ERROR] 'google-genai' is not installed.  Fix: pip install google-genai")
     sys.exit(1)
 
 _HERE = Path(__file__).parent
@@ -41,7 +41,7 @@ from scorer import score_ticker
 BATCH_SIZE = 5
 
 AGENT_VERSION = "Business Quality Agent v1.0"
-MODEL         = "claude-opus-4-6"
+MODEL         = "gemini-2.0-flash"
 
 
 # ---------------------------------------------------------------------------
@@ -288,7 +288,7 @@ def _print_single_result(r: dict) -> None:
 
 def run_single(ticker: str, client) -> None:
     """Score a single ticker and write output files."""
-    print(f"  Scoring {ticker} with Claude...")
+    print(f"  Scoring {ticker} with Gemini...")
     result = score_ticker(ticker, client)
 
     _print_single_result(result)
@@ -321,15 +321,15 @@ def main() -> None:
     args = parser.parse_args()
 
     # 1. Validate environment.
-    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not anthropic_key:
-        print("\n[ERROR] ANTHROPIC_API_KEY is not set.")
-        print("        Fix: export ANTHROPIC_API_KEY='sk-ant-...'\n")
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    if not gemini_key:
+        print("\n[ERROR] GEMINI_API_KEY is not set.")
+        print("        Fix: export GEMINI_API_KEY='...'\n")
         sys.exit(1)
 
     # 1b. Single-ticker mode — skip CSV, score one stock, and exit.
     if args.ticker:
-        client = anthropic.Anthropic(api_key=anthropic_key)
+        client = genai.Client(api_key=gemini_key)
         border = "═" * 70
         print(f"\n{border}")
         print(f"  BUSINESS QUALITY AGENT — SINGLE TICKER")
@@ -355,8 +355,8 @@ def main() -> None:
     # 3. Ensure output folder exists.
     OUTPUT_FOLDER.mkdir(parents=True, exist_ok=True)
 
-    # 4. Initialise the Anthropic client once for the full run.
-    client = anthropic.Anthropic(api_key=anthropic_key)
+    # 4. Initialise the Gemini client once for the full run.
+    client = genai.Client(api_key=gemini_key)
 
     # 5. Print run header.
     n_tickers = len(tickers)
@@ -382,8 +382,8 @@ def main() -> None:
         for ticker in batch:
             global_i = batch_start + batch.index(ticker) + 1
 
-            # Score with Claude (tool use).
-            print(f"  [{global_i}/{n_tickers}] {ticker} — scoring with Claude...")
+            # Score with Gemini (function calling).
+            print(f"  [{global_i}/{n_tickers}] {ticker} — scoring with Gemini...")
             result = score_ticker(ticker, client)
             all_results.append(result)
 

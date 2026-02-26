@@ -1,17 +1,18 @@
-# Business Quality Agent — Claude Tool-Use Scoring Engine
+# Business Quality Agent — Gemini Function-Calling Scoring Engine
 # Scores a single ticker on the 100-point Business Quality framework using
-# Claude's structured tool-use to guarantee schema-valid output.
+# Gemini's structured function calling to guarantee schema-valid output.
 #
-# Dependencies: pip install anthropic
-# API keys:     export ANTHROPIC_API_KEY="sk-ant-..."
+# Dependencies: pip install google-genai
+# API keys:     export GEMINI_API_KEY="..."
 
 import sys
 from pathlib import Path
 
 try:
-    import anthropic
+    from google import genai
+    from google.genai import types
 except ImportError:
-    print("[ERROR] 'anthropic' is not installed.  Fix: pip install anthropic")
+    print("[ERROR] 'google-genai' is not installed.  Fix: pip install google-genai")
     sys.exit(1)
 
 _HERE = Path(__file__).parent
@@ -147,24 +148,24 @@ Disruption & Cyclical Risk [0–10 pts]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Submit your assessment using the record_quality_score tool. You MUST call
-this tool — do not respond with prose instead.
+Submit your assessment using the record_quality_score function. You MUST call
+this function — do not respond with prose instead.
 """.strip()
 
 
 # ---------------------------------------------------------------------------
-# Tool definition — enforces structured JSON output via Anthropic tool use
+# Function declaration — enforces structured JSON output via Gemini function calling
 # ---------------------------------------------------------------------------
 
-SCORING_TOOL = {
-    "name": "record_quality_score",
-    "description": (
+SCORING_FUNCTION = types.FunctionDeclaration(
+    name="record_quality_score",
+    description=(
         "Record the complete structured quality score for a stock ticker. "
-        "Call this tool once with all scores and rationales populated. "
+        "Call this function once with all scores and rationales populated. "
         "Use 'Data Unavailable' for extracted_metrics fields that cannot "
         "be confirmed. Do NOT invent financial figures."
     ),
-    "input_schema": {
+    parameters_json_schema={
         "type": "object",
         "required": [
             "company_name",
@@ -186,9 +187,9 @@ SCORING_TOOL = {
                 "type": "string",
                 "description": "Full legal company name (e.g. 'Apple Inc.')",
             },
-            # ── MOAT (35 pts) ──────────────────────────────────────────────
+            # ── MOAT (40 pts) ──────────────────────────────────────────────
             "network_effects_score": {
-                "type": "number", "minimum": 0, "maximum": 10,
+                "type": "number",
                 "description": "Network Effects sub-score (0–10)",
             },
             "network_effects_rationale": {
@@ -196,44 +197,44 @@ SCORING_TOOL = {
                 "description": "1–2 sentence justification for network_effects_score",
             },
             "pricing_power_score": {
-                "type": "number", "minimum": 0, "maximum": 10,
+                "type": "number",
                 "description": "Pricing Power & Brand Heritage sub-score (0–10)",
             },
             "pricing_power_rationale": {"type": "string"},
             "switching_costs_score": {
-                "type": "number", "minimum": 0, "maximum": 10,
+                "type": "number",
                 "description": "Switching Costs / Recurring Revenue sub-score (0–10)",
             },
             "switching_costs_rationale": {"type": "string"},
             "low_cost_ops_score": {
-                "type": "number", "minimum": 0, "maximum": 10,
+                "type": "number",
                 "description": "Low-Cost Operations / Scale Advantage sub-score (0–10)",
             },
             "low_cost_ops_rationale": {"type": "string"},
-            # ── MANAGEMENT (25 pts) ────────────────────────────────────────
+            # ── MANAGEMENT (30 pts) ────────────────────────────────────────
             "capital_allocation_score": {
-                "type": "number", "minimum": 0, "maximum": 20,
+                "type": "number",
                 "description": "Capital Allocation sub-score (0–20)",
             },
             "capital_allocation_rationale": {"type": "string"},
             "owner_operator_score": {
-                "type": "number", "minimum": 0, "maximum": 10,
+                "type": "number",
                 "description": "Owner-Operator Alignment sub-score (0–10)",
             },
             "owner_operator_rationale": {"type": "string"},
-            # ── RESILIENCE (25 pts) ────────────────────────────────────────
+            # ── RESILIENCE (30 pts) ────────────────────────────────────────
             "cash_generation_score": {
-                "type": "number", "minimum": 0, "maximum": 10,
+                "type": "number",
                 "description": "Cash Generation / FCF Quality sub-score (0–10)",
             },
             "cash_generation_rationale": {"type": "string"},
             "hidden_debts_score": {
-                "type": "number", "minimum": 0, "maximum": 10,
+                "type": "number",
                 "description": "Hidden Debts & Balance Sheet sub-score (0–10)",
             },
             "hidden_debts_rationale": {"type": "string"},
             "disruption_risk_score": {
-                "type": "number", "minimum": 0, "maximum": 10,
+                "type": "number",
                 "description": "Disruption & Cyclical Risk sub-score (0–10)",
             },
             "disruption_risk_rationale": {"type": "string"},
@@ -268,7 +269,7 @@ SCORING_TOOL = {
             },
         },
     },
-}
+)
 
 
 # ---------------------------------------------------------------------------
@@ -277,13 +278,13 @@ SCORING_TOOL = {
 
 def score_ticker(
     ticker: str,
-    client: anthropic.Anthropic,
+    client: genai.Client,
 ) -> dict:
     """Score *ticker* using the 100-point Business Quality framework.
 
-    Calls Claude with tool_choice forced to `record_quality_score`, extracting
-    a guaranteed-schema-valid structured dict. Derives aggregate pillar totals
-    in Python (not trusted to Claude) for auditability.
+    Calls Gemini with forced function calling on `record_quality_score`,
+    extracting a guaranteed-schema-valid structured dict. Derives aggregate
+    pillar totals in Python (not trusted to the LLM) for auditability.
 
     Returns a complete result dict.
     On any failure, returns an error-sentinel dict so the batch continues.
@@ -292,29 +293,39 @@ def score_ticker(
         # 1. Build user message.
         user_message = (
             f"Score {ticker} on the Business Quality Framework and submit your "
-            f"assessment using the record_quality_score tool.\n\n"
+            f"assessment using the record_quality_score function.\n\n"
             f"Use your training knowledge of {ticker}'s business fundamentals, "
             f"financial track record, competitive position, and management history "
             f"to score each sub-criterion. If a specific metric cannot be confirmed, "
             f"record 'Data Unavailable' in extracted_metrics and score conservatively."
         )
 
-        # 3. Call Claude — force the specific tool.
-        response = client.messages.create(
-            model="claude-opus-4-6",
-            max_tokens=2000,
-            system=SCORING_SYSTEM_PROMPT,
-            tools=[SCORING_TOOL],
-            tool_choice={"type": "tool", "name": "record_quality_score"},
-            messages=[{"role": "user", "content": user_message}],
+        # 2. Call Gemini — force the specific function.
+        tool = types.Tool(function_declarations=[SCORING_FUNCTION])
+
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=user_message,
+            config=types.GenerateContentConfig(
+                system_instruction=SCORING_SYSTEM_PROMPT,
+                max_output_tokens=2000,
+                tools=[tool],
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                    disable=True,
+                ),
+                tool_config=types.ToolConfig(
+                    function_calling_config=types.FunctionCallingConfig(
+                        mode="ANY",
+                        allowed_function_names=["record_quality_score"],
+                    ),
+                ),
+            ),
         )
 
-        # 4. Extract the tool input (always present due to forced tool_choice).
-        raw = next(
-            b.input for b in response.content if b.type == "tool_use"
-        )
+        # 3. Extract the function call args.
+        raw = dict(response.function_calls[0].args)
 
-        # 5. Compute pillar totals in Python — never trust Claude's arithmetic.
+        # 4. Compute pillar totals in Python — never trust the LLM's arithmetic.
         moat_total = (
             float(raw["network_effects_score"])
             + float(raw["pricing_power_score"])
@@ -332,7 +343,7 @@ def score_ticker(
         )
         total_score = moat_total + management_total + resilience_total
 
-        # 6. Assemble the full result dict.
+        # 5. Assemble the full result dict.
         return {
             "ticker": ticker,
             "error": False,
@@ -362,9 +373,9 @@ def score_ticker(
             "disruption_risk_score":     float(raw["disruption_risk_score"]),
             "disruption_risk_rationale": raw["disruption_risk_rationale"],
             # Metadata
-            "identified_moats":       raw.get("identified_moats", []),
-            "identified_risks":       raw.get("identified_risks", []),
-            "extracted_metrics":      raw.get("extracted_metrics", {}),
+            "identified_moats":       list(raw.get("identified_moats", [])),
+            "identified_risks":       list(raw.get("identified_risks", [])),
+            "extracted_metrics":      dict(raw.get("extracted_metrics", {})),
             "one_sentence_rationale": raw.get("one_sentence_rationale", ""),
             "summary_paragraph":      raw.get("summary_paragraph", ""),
         }
