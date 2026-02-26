@@ -11,8 +11,10 @@
 #   export TAVILY_API_KEY="tvly-..."
 #
 # Usage:
-#   python business_quality_agent/score_universe.py
+#   python business_quality_agent/score_universe.py          # batch mode (all tickers)
+#   python business_quality_agent/score_universe.py AAPL     # single-ticker mode
 
+import argparse
 import csv
 import json
 import os
@@ -211,10 +213,144 @@ def _print_summary_table(results: list[dict]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Single-ticker mode
+# ---------------------------------------------------------------------------
+
+def _print_single_result(r: dict) -> None:
+    """Print a detailed scorecard for a single ticker."""
+    border = "═" * 70
+
+    if r.get("error"):
+        print(f"\n{border}")
+        print(f"  {r['ticker']} — SCORING FAILED")
+        print(f"{border}")
+        print(f"  Error: {r.get('error_message', 'unknown error')}\n")
+        return
+
+    print(f"\n{border}")
+    print(f"  {r['ticker']}  —  {r['company_name']}")
+    print(f"  TOTAL QUALITY SCORE:  {r['total_score']:.1f} / 100")
+    print(f"{border}")
+
+    # Pillar totals
+    print(f"\n  {'Pillar':<20} {'Score':>6}  {'Max':>4}")
+    print(f"  {'─' * 34}")
+    print(f"  {'Moat':<20} {r['moat_total']:>6.1f}  {'/35':>4}")
+    print(f"  {'Management':<20} {r['management_total']:>6.1f}  {'/25':>4}")
+    print(f"  {'Resilience':<20} {r['resilience_total']:>6.1f}  {'/25':>4}")
+    print(f"  {'Satisfaction':<20} {r['satisfaction_total']:>6.1f}  {'/15':>4}")
+
+    # Sub-scores with rationales
+    sub_scores = [
+        ("Moat", [
+            ("Network Effects",  "network_effects",  10),
+            ("Pricing Power",    "pricing_power",     10),
+            ("Switching Costs",  "switching_costs",   10),
+            ("Low-Cost Ops",     "low_cost_ops",       5),
+        ]),
+        ("Management", [
+            ("Capital Allocation", "capital_allocation", 15),
+            ("Owner-Operator",     "owner_operator",     10),
+        ]),
+        ("Resilience", [
+            ("Cash Generation",  "cash_generation",  10),
+            ("Hidden Debts",     "hidden_debts",     10),
+            ("Disruption Risk",  "disruption_risk",   5),
+        ]),
+        ("Satisfaction", [
+            ("Employee Sentiment", "employee_sentiment", 7.5),
+            ("Customer Sentiment", "customer_sentiment", 7.5),
+        ]),
+    ]
+
+    for pillar_name, items in sub_scores:
+        print(f"\n  ── {pillar_name} ──")
+        for label, key, max_pts in items:
+            score = r.get(f"{key}_score", 0)
+            rationale = r.get(f"{key}_rationale", "")
+            print(f"    {label:<22} {score:>5.1f}/{max_pts}")
+            if rationale:
+                print(f"      {rationale}")
+
+    # Moats and risks
+    moats = r.get("identified_moats", [])
+    risks = r.get("identified_risks", [])
+    if moats:
+        print(f"\n  Identified Moats:")
+        for m in moats:
+            print(f"    + {m}")
+    if risks:
+        print(f"\n  Identified Risks:")
+        for risk in risks:
+            print(f"    - {risk}")
+
+    # Extracted metrics
+    metrics = r.get("extracted_metrics", {})
+    if metrics and any(v for v in metrics.values()):
+        print(f"\n  Extracted Metrics:")
+        for k, v in metrics.items():
+            if v:
+                label = k.replace("_", " ").title()
+                print(f"    {label:<20} {v}")
+
+    # Summary
+    summary = r.get("summary_paragraph", "")
+    if summary:
+        print(f"\n  Summary:")
+        print(f"    {summary}")
+
+    print(f"\n{border}\n")
+
+
+def run_single(ticker: str, client) -> None:
+    """Score a single ticker and write output files."""
+    print(f"\n  Fetching stakeholder sentiment for {ticker}...")
+    try:
+        employee_results = fetch_employee_sentiment(ticker)
+        customer_results = fetch_customer_sentiment(ticker)
+        print(
+            f"  {len(employee_results)} employee, "
+            f"{len(customer_results)} customer source(s) found."
+        )
+    except EnvironmentError as exc:
+        print(f"\n{exc}\n")
+        sys.exit(1)
+    except Exception as exc:
+        print(f"  Sentiment search failed: {exc}")
+        employee_results, customer_results = [], []
+
+    print(f"  Scoring {ticker} with Claude...")
+    result = score_ticker(ticker, employee_results, customer_results, client)
+
+    _print_single_result(result)
+
+    # Write output files (single-entry lists).
+    OUTPUT_FOLDER.mkdir(parents=True, exist_ok=True)
+    write_rankings_csv([result], CSV_OUTPUT)
+    write_agent_handoff_json([result], JSON_OUTPUT)
+
+    print(f"  Output files:")
+    print(f"    {CSV_OUTPUT}")
+    print(f"    {JSON_OUTPUT}\n")
+
+
+# ---------------------------------------------------------------------------
 # Main orchestrator
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    # 0. Parse CLI arguments.
+    parser = argparse.ArgumentParser(
+        description="Business Quality Agent — score stocks on a 100-point framework.",
+    )
+    parser.add_argument(
+        "ticker",
+        nargs="?",
+        default=None,
+        help="Score a single ticker (e.g. AAPL). Omit to score all tickers from CSV.",
+    )
+    args = parser.parse_args()
+
     # 1. Validate environment.
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
     if not anthropic_key:
@@ -229,7 +365,20 @@ def main() -> None:
         print("        Get a free key at: https://tavily.com\n")
         sys.exit(1)
 
-    # 2. Load stock universe.
+    # 1b. Single-ticker mode — skip CSV, score one stock, and exit.
+    if args.ticker:
+        client = anthropic.Anthropic(api_key=anthropic_key)
+        border = "═" * 70
+        print(f"\n{border}")
+        print(f"  BUSINESS QUALITY AGENT — SINGLE TICKER")
+        print(f"  {AGENT_VERSION}  |  Model: {MODEL}")
+        print(f"  Ticker: {args.ticker.upper()}")
+        print(f"  Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"{border}")
+        run_single(args.ticker.upper(), client)
+        return
+
+    # 2. Load stock universe (batch mode).
     if not CSV_PATH.exists():
         print(f"\n[ERROR] Stock universe not found: {CSV_PATH}")
         print( "        Set BQA_BASE_DIR to point to your folder:")
