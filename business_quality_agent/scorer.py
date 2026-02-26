@@ -2,9 +2,8 @@
 # Scores a single ticker on the 100-point Business Quality framework using
 # Claude's structured tool-use to guarantee schema-valid output.
 #
-# Dependencies: pip install anthropic tavily-python
+# Dependencies: pip install anthropic
 # API keys:     export ANTHROPIC_API_KEY="sk-ant-..."
-#               export TAVILY_API_KEY="tvly-..."
 
 import sys
 from pathlib import Path
@@ -18,7 +17,7 @@ except ImportError:
 _HERE = Path(__file__).parent
 sys.path.insert(0, str(_HERE))
 
-from stakeholder_sentiment import _format_results_for_prompt
+# Stakeholder sentiment (Tavily) removed — points redistributed to other pillars.
 
 # ---------------------------------------------------------------------------
 # Scoring rubric — embedded verbatim from the investment committee spec
@@ -47,7 +46,7 @@ STRICT RULES:
 SCORING RUBRIC — 100 POINTS TOTAL:
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. DURABLE COMPETITIVE ADVANTAGE / MOAT — 35 Points
+1. DURABLE COMPETITIVE ADVANTAGE / MOAT — 40 Points
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Network Effects [0–10 pts]
@@ -75,26 +74,26 @@ Switching Costs / Recurring Revenue [0–10 pts]
        recurring and transactional revenue.
    0 = Purely transactional; customers can switch on their next purchase.
 
-Low-Cost Operations / Scale Advantage [0–5 pts]
-   5 = Structural, not cyclical, cost leadership. Scale so large that unit
+Low-Cost Operations / Scale Advantage [0–10 pts]
+  10 = Structural, not cyclical, cost leadership. Scale so large that unit
        economics cannot be replicated by any plausible competitor. Operating
        leverage compounds as the business grows.
-   2 = Some scale advantage but competitors can close the gap with capital.
+   5 = Some scale advantage but competitors can close the gap with capital.
    0 = No discernible cost advantage; cost structure in line with peers.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-2. MANAGEMENT & GOVERNANCE — 25 Points
+2. MANAGEMENT & GOVERNANCE — 30 Points
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Capital Allocation [0–15 pts]
-  15 = Consistently exceptional ROCE (>20% sustained over 10 years). Capital
+Capital Allocation [0–20 pts]
+  20 = Consistently exceptional ROCE (>20% sustained over 10 years). Capital
        deployed rationally: organic reinvestment first, opportunistic buybacks
        when undervalued, bolt-on M&A at sensible prices. No history of
        empire-building or value-destructive mega-deals. Shareholder returns
        compound at the business's underlying ROIC.
-  10 = Good ROCE (15–20%). Sound capital allocation with minor blemishes
+  13 = Good ROCE (15–20%). Sound capital allocation with minor blemishes
        (one acquisition that diluted returns temporarily, for example).
-   5 = Average ROCE (10–15%) or inconsistent. Some questionable capital
+   6 = Average ROCE (10–15%) or inconsistent. Some questionable capital
        deployment (equity issuances, acquisitions that stalled).
    0 = Poor ROCE (<10%) or a track record of destroying shareholder value
        through reckless debt-funded M&A, persistent dilution, or serial
@@ -112,7 +111,7 @@ Owner-Operator Alignment [0–10 pts]
        metrics that perpetually flatter. Management track record of over-promising.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-3. FINANCIAL & STRUCTURAL RESILIENCE — 25 Points
+3. FINANCIAL & STRUCTURAL RESILIENCE — 30 Points
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Cash Generation / FCF Quality [0–10 pts]
@@ -137,40 +136,14 @@ Hidden Debts & Balance Sheet [0–10 pts]
        market cap, or massive operating lease obligations that disguise the
        true capital intensity. Goodwill write-down risk is material.
 
-Disruption & Cyclical Risk [0–5 pts]
-   5 = Business is fundamentally "tech-proof" or actively benefiting from
+Disruption & Cyclical Risk [0–10 pts]
+  10 = Business is fundamentally "tech-proof" or actively benefiting from
        technology trends. Structurally growing industry with secular tailwinds.
        Product is a necessity, not a discretionary luxury.
-   2 = Moderate disruption exposure; business is adapting but faces real
+   5 = Moderate disruption exposure; business is adapting but faces real
        technology or structural headwinds. Some cyclicality but not extreme.
    0 = High disruption risk (facing an existential technology threat, obsolete
        product category, or heavily cyclical industry riding a temporary boom).
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-4. STAKEHOLDER SATISFACTION — 15 Points
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Employee Sentiment [0–7.5 pts]
-  Score is based ONLY on the web search data provided. Do not invent or
-  assume ratings. If data is absent, score conservatively (≤3 pts).
-  7.5 = Glassdoor ≥4.2/5, high CEO approval (>85%), positive culture themes,
-        low attrition signals. Employees describe it as a top-tier workplace.
-  4.0 = Glassdoor 3.5–4.1, mixed reviews, average CEO approval (65–85%).
-        Some recurring complaints but nothing structural.
-  1.0 = Glassdoor <3.5, or frequent themes of poor culture, toxic leadership,
-        high attrition, or significant layoff trauma in recent reviews.
-  0.0 = "Data Unavailable" — no reliable data found; score conservatively.
-
-Customer Sentiment [0–7.5 pts]
-  Score is based ONLY on the web search data provided. Do not invent or
-  assume ratings. If data is absent, score conservatively (≤3 pts).
-  7.5 = Trustpilot ≥4.2/5 or equivalent; consistent praise for product
-        quality, reliability, and service. Brand trusted by customers.
-  4.0 = Trustpilot 3.5–4.1 or mixed signals; reasonable satisfaction but
-        recurring complaints about specific product lines or service failures.
-  1.0 = Trustpilot <3.5 or widespread, structural customer dissatisfaction
-        (product failures, poor service, brand trust eroding).
-  0.0 = "Data Unavailable" — no reliable data found; score conservatively.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -204,8 +177,6 @@ SCORING_TOOL = {
             "cash_generation_score", "cash_generation_rationale",
             "hidden_debts_score", "hidden_debts_rationale",
             "disruption_risk_score", "disruption_risk_rationale",
-            "employee_sentiment_score", "employee_sentiment_rationale",
-            "customer_sentiment_score", "customer_sentiment_rationale",
             "identified_moats", "identified_risks",
             "extracted_metrics",
             "one_sentence_rationale", "summary_paragraph",
@@ -235,14 +206,14 @@ SCORING_TOOL = {
             },
             "switching_costs_rationale": {"type": "string"},
             "low_cost_ops_score": {
-                "type": "number", "minimum": 0, "maximum": 5,
-                "description": "Low-Cost Operations / Scale Advantage sub-score (0–5)",
+                "type": "number", "minimum": 0, "maximum": 10,
+                "description": "Low-Cost Operations / Scale Advantage sub-score (0–10)",
             },
             "low_cost_ops_rationale": {"type": "string"},
             # ── MANAGEMENT (25 pts) ────────────────────────────────────────
             "capital_allocation_score": {
-                "type": "number", "minimum": 0, "maximum": 15,
-                "description": "Capital Allocation sub-score (0–15)",
+                "type": "number", "minimum": 0, "maximum": 20,
+                "description": "Capital Allocation sub-score (0–20)",
             },
             "capital_allocation_rationale": {"type": "string"},
             "owner_operator_score": {
@@ -262,21 +233,10 @@ SCORING_TOOL = {
             },
             "hidden_debts_rationale": {"type": "string"},
             "disruption_risk_score": {
-                "type": "number", "minimum": 0, "maximum": 5,
-                "description": "Disruption & Cyclical Risk sub-score (0–5)",
+                "type": "number", "minimum": 0, "maximum": 10,
+                "description": "Disruption & Cyclical Risk sub-score (0–10)",
             },
             "disruption_risk_rationale": {"type": "string"},
-            # ── SATISFACTION (15 pts) ──────────────────────────────────────
-            "employee_sentiment_score": {
-                "type": "number", "minimum": 0, "maximum": 7.5,
-                "description": "Employee Sentiment sub-score (0–7.5). Must be based on provided web data only.",
-            },
-            "employee_sentiment_rationale": {"type": "string"},
-            "customer_sentiment_score": {
-                "type": "number", "minimum": 0, "maximum": 7.5,
-                "description": "Customer Sentiment sub-score (0–7.5). Must be based on provided web data only.",
-            },
-            "customer_sentiment_rationale": {"type": "string"},
             # ── METADATA ──────────────────────────────────────────────────
             "identified_moats": {
                 "type": "array",
@@ -295,11 +255,8 @@ SCORING_TOOL = {
                     "roce":              {"type": "string"},
                     "fcf_conversion":    {"type": "string"},
                     "net_debt_ebitda":   {"type": "string"},
-                    "glassdoor_rating":  {"type": "string"},
-                    "trustpilot_rating": {"type": "string"},
                 },
-                "required": ["roce", "fcf_conversion", "net_debt_ebitda",
-                             "glassdoor_rating", "trustpilot_rating"],
+                "required": ["roce", "fcf_conversion", "net_debt_ebitda"],
             },
             "one_sentence_rationale": {
                 "type": "string",
@@ -320,8 +277,6 @@ SCORING_TOOL = {
 
 def score_ticker(
     ticker: str,
-    employee_results: list[dict],
-    customer_results: list[dict],
     client: anthropic.Anthropic,
 ) -> dict:
     """Score *ticker* using the 100-point Business Quality framework.
@@ -334,27 +289,14 @@ def score_ticker(
     On any failure, returns an error-sentinel dict so the batch continues.
     """
     try:
-        # 1. Format sentiment data for the prompt.
-        employee_block = _format_results_for_prompt(employee_results)
-        customer_block = _format_results_for_prompt(customer_results)
-
-        # 2. Build user message.
+        # 1. Build user message.
         user_message = (
             f"Score {ticker} on the Business Quality Framework and submit your "
             f"assessment using the record_quality_score tool.\n\n"
-            f"CRITICAL — Satisfaction sub-scores:\n"
-            f"  Base employee_sentiment_score ONLY on the EMPLOYEE REVIEW DATA below.\n"
-            f"  Base customer_sentiment_score ONLY on the CUSTOMER REVIEW DATA below.\n"
-            f"  If a rating figure cannot be found in the data, record 'Data Unavailable'\n"
-            f"  in extracted_metrics and score conservatively (do not exceed 3.0/7.5).\n\n"
-            f"{'=' * 60}\n"
-            f"EMPLOYEE REVIEW DATA\n"
-            f"{'=' * 60}\n"
-            f"{employee_block}\n\n"
-            f"{'=' * 60}\n"
-            f"CUSTOMER REVIEW DATA\n"
-            f"{'=' * 60}\n"
-            f"{customer_block}"
+            f"Use your training knowledge of {ticker}'s business fundamentals, "
+            f"financial track record, competitive position, and management history "
+            f"to score each sub-criterion. If a specific metric cannot be confirmed, "
+            f"record 'Data Unavailable' in extracted_metrics and score conservatively."
         )
 
         # 3. Call Claude — force the specific tool.
@@ -388,11 +330,7 @@ def score_ticker(
             + float(raw["hidden_debts_score"])
             + float(raw["disruption_risk_score"])
         )
-        satisfaction_total = (
-            float(raw["employee_sentiment_score"])
-            + float(raw["customer_sentiment_score"])
-        )
-        total_score = moat_total + management_total + resilience_total + satisfaction_total
+        total_score = moat_total + management_total + resilience_total
 
         # 6. Assemble the full result dict.
         return {
@@ -404,7 +342,6 @@ def score_ticker(
             "moat_total":         round(moat_total, 2),
             "management_total":   round(management_total, 2),
             "resilience_total":   round(resilience_total, 2),
-            "satisfaction_total": round(satisfaction_total, 2),
             # Sub-scores
             "network_effects_score":     float(raw["network_effects_score"]),
             "network_effects_rationale": raw["network_effects_rationale"],
@@ -424,10 +361,6 @@ def score_ticker(
             "hidden_debts_rationale":    raw["hidden_debts_rationale"],
             "disruption_risk_score":     float(raw["disruption_risk_score"]),
             "disruption_risk_rationale": raw["disruption_risk_rationale"],
-            "employee_sentiment_score":     float(raw["employee_sentiment_score"]),
-            "employee_sentiment_rationale": raw["employee_sentiment_rationale"],
-            "customer_sentiment_score":     float(raw["customer_sentiment_score"]),
-            "customer_sentiment_rationale": raw["customer_sentiment_rationale"],
             # Metadata
             "identified_moats":       raw.get("identified_moats", []),
             "identified_risks":       raw.get("identified_risks", []),
@@ -446,7 +379,6 @@ def score_ticker(
             "moat_total": 0.0,
             "management_total": 0.0,
             "resilience_total": 0.0,
-            "satisfaction_total": 0.0,
             "network_effects_score": 0.0, "network_effects_rationale": "",
             "pricing_power_score": 0.0, "pricing_power_rationale": "",
             "switching_costs_score": 0.0, "switching_costs_rationale": "",
@@ -456,16 +388,12 @@ def score_ticker(
             "cash_generation_score": 0.0, "cash_generation_rationale": "",
             "hidden_debts_score": 0.0, "hidden_debts_rationale": "",
             "disruption_risk_score": 0.0, "disruption_risk_rationale": "",
-            "employee_sentiment_score": 0.0, "employee_sentiment_rationale": "",
-            "customer_sentiment_score": 0.0, "customer_sentiment_rationale": "",
             "identified_moats": [],
             "identified_risks": [f"SCORING ERROR: {exc}"],
             "extracted_metrics": {
                 "roce": "Data Unavailable",
                 "fcf_conversion": "Data Unavailable",
                 "net_debt_ebitda": "Data Unavailable",
-                "glassdoor_rating": "Data Unavailable",
-                "trustpilot_rating": "Data Unavailable",
             },
             "one_sentence_rationale": f"Scoring failed: {exc}",
             "summary_paragraph": "",

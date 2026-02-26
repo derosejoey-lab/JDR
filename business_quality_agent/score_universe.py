@@ -5,10 +5,9 @@
 #   ~/Desktop/AI_Investment_Committee/agent_handoff.json
 # Override base path with: export BQA_BASE_DIR="/your/path"
 #
-# Dependencies: pip install anthropic tavily-python pandas
+# Dependencies: pip install anthropic pandas
 # API keys:
 #   export ANTHROPIC_API_KEY="sk-ant-..."
-#   export TAVILY_API_KEY="tvly-..."
 #
 # Usage:
 #   python business_quality_agent/score_universe.py          # batch mode (all tickers)
@@ -33,7 +32,6 @@ sys.path.insert(0, str(_HERE))
 
 from config import CSV_PATH, OUTPUT_FOLDER, CSV_OUTPUT, JSON_OUTPUT
 from read_universe import load_tickers
-from stakeholder_sentiment import fetch_employee_sentiment, fetch_customer_sentiment
 from scorer import score_ticker
 
 # ---------------------------------------------------------------------------
@@ -61,10 +59,9 @@ def write_rankings_csv(results: list[dict], path: Path) -> None:
         "Ticker",
         "Company Name",
         "Total Quality Score",
-        "Moat Score (0-35)",
-        "Management Score (0-25)",
-        "Resilience Score (0-25)",
-        "Satisfaction Score (0-15)",
+        "Moat Score (0-40)",
+        "Management Score (0-30)",
+        "Resilience Score (0-30)",
         "1-Sentence Rationale",
     ]
 
@@ -83,10 +80,9 @@ def write_rankings_csv(results: list[dict], path: Path) -> None:
                 "Ticker":                  r["ticker"],
                 "Company Name":            r["company_name"],
                 "Total Quality Score":     f"{r['total_score']:.1f}",
-                "Moat Score (0-35)":       f"{r['moat_total']:.1f}",
-                "Management Score (0-25)": f"{r['management_total']:.1f}",
-                "Resilience Score (0-25)": f"{r['resilience_total']:.1f}",
-                "Satisfaction Score (0-15)": f"{r['satisfaction_total']:.1f}",
+                "Moat Score (0-40)":       f"{r['moat_total']:.1f}",
+                "Management Score (0-30)": f"{r['management_total']:.1f}",
+                "Resilience Score (0-30)": f"{r['resilience_total']:.1f}",
                 "1-Sentence Rationale":    rationale,
             })
 
@@ -129,11 +125,6 @@ def write_agent_handoff_json(results: list[dict], path: Path) -> None:
                     "hidden_debts":     r["hidden_debts_score"],
                     "disruption_risk":  r["disruption_risk_score"],
                 },
-                "satisfaction": {
-                    "total":              r["satisfaction_total"],
-                    "employee_sentiment": r["employee_sentiment_score"],
-                    "customer_sentiment": r["customer_sentiment_score"],
-                },
             },
             "identified_moats":       r.get("identified_moats", []),
             "identified_risks":       r.get("identified_risks", []),
@@ -150,13 +141,12 @@ def write_agent_handoff_json(results: list[dict], path: Path) -> None:
             "model":               MODEL,
             "ticker_count":        len(results),
             "scoring_methodology": (
-                "4-pillar framework: "
-                "Moat (35pts: Network Effects 10 + Pricing Power 10 + "
-                "Switching Costs 10 + Low-Cost Ops 5) | "
-                "Management (25pts: Capital Allocation 15 + Owner-Operator 10) | "
-                "Resilience (25pts: Cash Generation 10 + Hidden Debts 10 + "
-                "Disruption Risk 5) | "
-                "Satisfaction (15pts: Employee 7.5 + Customer 7.5)"
+                "3-pillar framework: "
+                "Moat (40pts: Network Effects 10 + Pricing Power 10 + "
+                "Switching Costs 10 + Low-Cost Ops 10) | "
+                "Management (30pts: Capital Allocation 20 + Owner-Operator 10) | "
+                "Resilience (30pts: Cash Generation 10 + Hidden Debts 10 + "
+                "Disruption Risk 10)"
             ),
         },
         "universe": universe,
@@ -176,7 +166,7 @@ def _print_summary_table(results: list[dict]) -> None:
 
     header = (
         f"{'Rank':>4}  {'Ticker':<8}  {'Company':<30}  "
-        f"{'Score':>5}  {'Moat':>5}  {'Mgmt':>5}  {'Resil':>5}  {'Satisf':>6}"
+        f"{'Score':>5}  {'Moat':>5}  {'Mgmt':>5}  {'Resil':>5}"
     )
     divider = "─" * len(header)
 
@@ -192,8 +182,7 @@ def _print_summary_table(results: list[dict]) -> None:
             f"{r['total_score']:>5.1f}  "
             f"{r['moat_total']:>5.1f}  "
             f"{r['management_total']:>5.1f}  "
-            f"{r['resilience_total']:>5.1f}  "
-            f"{r['satisfaction_total']:>6.1f}"
+            f"{r['resilience_total']:>5.1f}"
             f"{flag}"
         )
 
@@ -235,10 +224,9 @@ def _print_single_result(r: dict) -> None:
     # Pillar totals
     print(f"\n  {'Pillar':<20} {'Score':>6}  {'Max':>4}")
     print(f"  {'─' * 34}")
-    print(f"  {'Moat':<20} {r['moat_total']:>6.1f}  {'/35':>4}")
-    print(f"  {'Management':<20} {r['management_total']:>6.1f}  {'/25':>4}")
-    print(f"  {'Resilience':<20} {r['resilience_total']:>6.1f}  {'/25':>4}")
-    print(f"  {'Satisfaction':<20} {r['satisfaction_total']:>6.1f}  {'/15':>4}")
+    print(f"  {'Moat':<20} {r['moat_total']:>6.1f}  {'/40':>4}")
+    print(f"  {'Management':<20} {r['management_total']:>6.1f}  {'/30':>4}")
+    print(f"  {'Resilience':<20} {r['resilience_total']:>6.1f}  {'/30':>4}")
 
     # Sub-scores with rationales
     sub_scores = [
@@ -246,20 +234,16 @@ def _print_single_result(r: dict) -> None:
             ("Network Effects",  "network_effects",  10),
             ("Pricing Power",    "pricing_power",     10),
             ("Switching Costs",  "switching_costs",   10),
-            ("Low-Cost Ops",     "low_cost_ops",       5),
+            ("Low-Cost Ops",     "low_cost_ops",      10),
         ]),
         ("Management", [
-            ("Capital Allocation", "capital_allocation", 15),
+            ("Capital Allocation", "capital_allocation", 20),
             ("Owner-Operator",     "owner_operator",     10),
         ]),
         ("Resilience", [
             ("Cash Generation",  "cash_generation",  10),
             ("Hidden Debts",     "hidden_debts",     10),
-            ("Disruption Risk",  "disruption_risk",   5),
-        ]),
-        ("Satisfaction", [
-            ("Employee Sentiment", "employee_sentiment", 7.5),
-            ("Customer Sentiment", "customer_sentiment", 7.5),
+            ("Disruption Risk",  "disruption_risk",  10),
         ]),
     ]
 
@@ -304,23 +288,8 @@ def _print_single_result(r: dict) -> None:
 
 def run_single(ticker: str, client) -> None:
     """Score a single ticker and write output files."""
-    print(f"\n  Fetching stakeholder sentiment for {ticker}...")
-    try:
-        employee_results = fetch_employee_sentiment(ticker)
-        customer_results = fetch_customer_sentiment(ticker)
-        print(
-            f"  {len(employee_results)} employee, "
-            f"{len(customer_results)} customer source(s) found."
-        )
-    except EnvironmentError as exc:
-        print(f"\n{exc}\n")
-        sys.exit(1)
-    except Exception as exc:
-        print(f"  Sentiment search failed: {exc}")
-        employee_results, customer_results = [], []
-
     print(f"  Scoring {ticker} with Claude...")
-    result = score_ticker(ticker, employee_results, customer_results, client)
+    result = score_ticker(ticker, client)
 
     _print_single_result(result)
 
@@ -356,13 +325,6 @@ def main() -> None:
     if not anthropic_key:
         print("\n[ERROR] ANTHROPIC_API_KEY is not set.")
         print("        Fix: export ANTHROPIC_API_KEY='sk-ant-...'\n")
-        sys.exit(1)
-
-    tavily_key = os.environ.get("TAVILY_API_KEY")
-    if not tavily_key:
-        print("\n[ERROR] TAVILY_API_KEY is not set.")
-        print("        Fix: export TAVILY_API_KEY='tvly-...'")
-        print("        Get a free key at: https://tavily.com\n")
         sys.exit(1)
 
     # 1b. Single-ticker mode — skip CSV, score one stock, and exit.
@@ -420,27 +382,9 @@ def main() -> None:
         for ticker in batch:
             global_i = batch_start + batch.index(ticker) + 1
 
-            # a. Stakeholder sentiment (Tavily web search).
-            print(f"  [{global_i}/{n_tickers}] {ticker} — fetching sentiment data...")
-            try:
-                employee_results = fetch_employee_sentiment(ticker)
-                customer_results = fetch_customer_sentiment(ticker)
-                print(
-                    f"  [{global_i}/{n_tickers}] {ticker} — "
-                    f"{len(employee_results)} employee, "
-                    f"{len(customer_results)} customer source(s) found."
-                )
-            except EnvironmentError as exc:
-                # Tavily key missing — fail the entire run cleanly.
-                print(f"\n{exc}\n")
-                sys.exit(1)
-            except Exception as exc:
-                print(f"  [{global_i}/{n_tickers}] {ticker} — sentiment search failed: {exc}")
-                employee_results, customer_results = [], []
-
-            # b. Claude scoring (tool use).
+            # Score with Claude (tool use).
             print(f"  [{global_i}/{n_tickers}] {ticker} — scoring with Claude...")
-            result = score_ticker(ticker, employee_results, customer_results, client)
+            result = score_ticker(ticker, client)
             all_results.append(result)
 
             status = f"Score: {result['total_score']:.1f}/100"
