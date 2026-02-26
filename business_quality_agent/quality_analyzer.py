@@ -24,6 +24,7 @@ sys.path.insert(0, str(_HERE))
 
 from pdf_reader import load_all_pdfs, INVESTMENT_COMMITTEE_FOLDER
 from read_universe import CSV_PATH, load_tickers
+from stakeholder_sentiment import gather_stakeholder_sentiment
 
 # ---------------------------------------------------------------------------
 # Quality-investing principles distilled from:
@@ -329,7 +330,7 @@ def main() -> None:
         print(f"\n[ERROR] Unexpected error during analysis: {exc}\n")
         sys.exit(1)
 
-    # Display the result.
+    # Display the quality analysis result.
     banner = f"  QUALITY ANALYSIS: {first_ticker}  "
     border = "=" * (len(banner) + 4)
     print(f"\n{border}")
@@ -337,6 +338,25 @@ def main() -> None:
     print(f"{border}\n")
     print(result)
     print(f"\n{border}\n")
+
+    # --- Step 2: Stakeholder Sentiment (live web search) ---
+    s_banner = f"  STAKEHOLDER SENTIMENT: {first_ticker}  "
+    s_border = "=" * (len(s_banner) + 4)
+    print(f"\n{s_border}")
+    print(f"= {s_banner} =")
+    print(f"{s_border}\n")
+
+    sentiment_client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+
+    try:
+        sentiment = gather_stakeholder_sentiment(first_ticker, sentiment_client)
+        print(sentiment)
+    except EnvironmentError as exc:
+        print(exc)
+    except Exception as exc:
+        print(f"[WARNING] Stakeholder sentiment step failed: {exc}")
+
+    print(f"\n{s_border}\n")
 
 
 if __name__ == "__main__":
